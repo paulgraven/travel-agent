@@ -18,7 +18,7 @@ The public showcase is intended for anyone to try. It is separate from the priva
 - Date/time prepopulation from selected trip and traveler-aware RTD fares.
 - DEN Economy parking and RTD A Line published-rate transportation estimates with references and clearly stated assumptions.
 - Provider handoff and manual round-trip quote entry for Uber/Lyft XL.
-- Date-specific RTD schedule parser guarded by explicit GTFS license acceptance.
+- Official A Line schedule verification for supported dates with holiday safeguards.
 - Bearer-protected experimental MCP JSON-RPC endpoint in the **private** deployment; not yet a registered ChatGPT App.
 - Vercel Git auto-deploy for private and public environments, Node tests and GitHub CI.
 
@@ -26,7 +26,7 @@ The public showcase is intended for anyone to try. It is separate from the priva
 
 - Live Uber/Lyft quotes are **not** available without provider-approved API access; the app will not fabricate them.
 - Precise vehicle trip times require live map traffic; only planning targets are shown.
-- Date-specific RTD schedule requires the owner to review and accept the RTD GTFS license, then configure RTD_GTFS_LICENSE_ACCEPTED=true on the private Vercel project; no times are invented when feed data is unavailable.
+- RTD schedule times are retrieved from the official A Line timetable with service-day and effective-period validation; unverified dates are flagged, never invented.
 - Flight parsing is best-effort and requires itinerary confirmation; provider flight-status feeds are not connected.
 - ChatGPT custom app registration and OAuth for MCP tool authorization are separate unfinished integrations.
 
