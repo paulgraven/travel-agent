@@ -25,3 +25,25 @@ test('does not expose actual personal flights in fictional demo',()=>{
  assert.ok(DEMO_TRIPS[0].segments.every(x=>x.flightNumber.startsWith('DEMO')));
  assert.equal(DEMO_TRIPS[0].outbound.from,'DEN');
 });
+
+test('Google fromGmail event title plus origin location resolves route and airport-local times',()=>{
+ const x=calendarSegment({
+   id:'imported',eventType:'fromGmail',summary:'Flight to Minneapolis/St. Paul (UA 4321)',
+   location:'Denver DEN',
+   start:{dateTime:'2026-11-20T17:30:00-07:00'},
+   end:{dateTime:'2026-11-20T19:32:00-07:00'}
+ });
+ assert.equal(x.from,'DEN');assert.equal(x.to,'MSP');
+ assert.equal(x.departureLocal,'2026-11-20T17:30');
+ assert.equal(x.arrivalLocal,'2026-11-20T20:32');
+});
+test('Westchester County maps to HPN without guessing New York-area airports',()=>{
+ const x=calendarSegment({
+  id:'east',summary:'Flight to Westchester County (DL 987)',location:'Minneapolis MSP',
+  start:{dateTime:'2026-12-26T11:45:00-07:00'},
+  end:{dateTime:'2026-12-26T14:38:00-07:00'}
+ });
+ assert.equal(x.from,'MSP');assert.equal(x.to,'HPN');
+ assert.equal(x.departureLocal,'2026-12-26T12:45');
+ assert.equal(x.arrivalLocal,'2026-12-26T16:38');
+});
