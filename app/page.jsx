@@ -22,6 +22,7 @@ function targetTime(v,offset){
 }
 function targetText(v,offset){const ts=targetTime(v,offset);if(!ts)return 'Unverified';return timeFmt(new Date(ts).toISOString().slice(0,16))}
 function money(v){return !empty(v)&&Number.isFinite(Number(v))?'$'+Math.round(Number(v)).toLocaleString('en-US'):'Quote needed'}
+function prettyClock(v){const m=/^(\d{1,2}):(\d{2})/.exec(v||'');if(!m)return v||'Unverified';const h=Number(m[1]);return String(h%12||12)+':'+m[2]+(h>=12?'pm':'am')}
 function RoundIcon({id}){const Icon=icons[id]||CarFront;return <span className={'option-icon '+(id==='rtd'?'train':id==='rideshare'?'ride':'')}><Icon size={18}/></span>}
 function Stepper({step}){return <div className="stepper" aria-label="Planning progress">{['Trip','Travelers','Compare','Your plan'].map((name,i)=><div key={name} style={{display:'contents'}}>{i>0&&<span className="step-line"/>}<div className={'stepper-item '+(step>i+1?'done':step===i+1?'active':'')}><span className="step-number">{step>i+1?<Check size={14}/>:i+1}</span>{name}</div></div>)}</div>}
 function SectionTitle({icon:Icon,title,note}){return <div className="section-heading"><span className="section-icon"><Icon size={19}/></span><div><h2>{title}</h2>{note&&<p>{note}</p>}</div></div>}
@@ -40,14 +41,14 @@ function SummaryTimeline({trip,departureLocal,arrivalLocal,selected,travelers,rt
  const mapsURL='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(origin||'Denver, CO')+'&destination='+encodeURIComponent('Denver International Airport')+'&travelmode=driving';
  const parts=[
   {title:'Departure day',rows:[
-   {title:isTrain?(chosen?.outbound?'Board the A Line at Central Park':'Choose an outbound A Line train'):'Leave for the airport',note:isTrain?(chosen?.outbound?chosen.outbound.departCentralPark+' · published RTD time':'Select a train that arrives at DEN before '+target+'.'): 'Check travel time from your address. '+(selected==='parking'?'Allow time to park and reach the terminal.':'Check pickup, luggage and car seats.')},
-   {title:isTrain?(chosen?.outbound?'Arrive at DEN Station':'Recommended airport arrival'):'Aim to reach DEN by',note:isTrain&&chosen?.outbound?chosen.outbound.arriveDEN+' · published RTD time':target+' · planning target, not a verified journey time'},
+   {title:isTrain?(chosen?.outbound?'Board the A Line at Central Park':'Choose an outbound A Line train'):'Leave for the airport',note:isTrain?(chosen?.outbound?prettyClock(chosen.outbound.departCentralPark)+' · published RTD time':'Select a train that arrives at DEN before '+target+'.'): 'Check travel time from your address. '+(selected==='parking'?'Allow time to park and reach the terminal.':'Check pickup, luggage and car seats.')},
+   {title:isTrain?(chosen?.outbound?'Arrive at DEN Station':'Recommended airport arrival'):'Aim to reach DEN by',note:isTrain&&chosen?.outbound?prettyClock(chosen.outbound.arriveDEN)+' · published RTD time':target+' · planning target, not a verified journey time'},
    {title:'Flight departs',note:fullDeparture+' · '+(trip?.outbound?.flightNumber||'flight')}
   ]},
   {title:'Return day',rows:[
    {title:'Flight arrives',note:fullArrival},
-   {title:isTrain?(chosen?.inbound?'Board the A Line at DEN':'Earliest recommended train'):'Collect luggage / exit airport',note:isTrain?(chosen?.inbound?chosen.inbound.departDEN+' · published RTD time':earliest+' or later · exact train unverified'):'Allow at least '+(family?'60':'45')+' minutes for deplaning and baggage.'},
-   {title:isTrain?(chosen?.inbound?'Arrive at Central Park':'Return home'):'Return home',note:isTrain?(chosen?.inbound?chosen.inbound.arriveCentralPark+' · published RTD time':'Train times not yet verified.'):'Allow time for '+(selected==='parking'?'economy parking shuttle and driving.':'your ride pickup and driving.')}
+   {title:isTrain?(chosen?.inbound?'Board the A Line at DEN':'Earliest recommended train'):'Collect luggage / exit airport',note:isTrain?(chosen?.inbound?prettyClock(chosen.inbound.departDEN)+' · published RTD time':earliest+' or later · exact train unverified'):'Allow at least '+(family?'60':'45')+' minutes for deplaning and baggage.'},
+   {title:isTrain?(chosen?.inbound?'Arrive at Central Park':'Return home'):'Return home',note:isTrain?(chosen?.inbound?prettyClock(chosen.inbound.arriveCentralPark)+' · published RTD time':'Train times not yet verified.'):'Allow time for '+(selected==='parking'?'economy parking shuttle and driving.':'your ride pickup and driving.')}
   ]}
  ];
  return <div>
@@ -149,7 +150,7 @@ export default function Home(){
        <div className="inline-controls" style={{marginTop:18}}><span className="chip">{MODES.find(t=>t.id===traveler)?.label} · {localFmt(departureLocal)} → {localFmt(arrivalLocal)}</span><button className="link-button" onClick={()=>setStep(2)}><SlidersHorizontal/> Edit travelers</button></div>
        <div className="inline-controls" style={{marginTop:15,marginBottom:10}}><label className="label" style={{margin:0}}>Central Park parking eligibility <select className="select" style={{width:'auto',marginLeft:10,minHeight:34,padding:'6px 9px'}} value={district} onChange={e=>{setDistrict(e.target.value);loadComparison(adults,e.target.value)}}><option value="in">In RTD district</option><option value="out">Outside district</option></select></label><button className="link-button" onClick={()=>loadComparison(adults)}><RefreshCw/> Refresh</button></div>
        {busy&&!transport&&<p className="muted">Calculating published-rate estimates…</p>}
-       {transport&&<div style={{border:'1px solid #e5ebf3',borderRadius:12,overflow:'hidden',marginTop:12}}><div className="transport-head"><span>Option</span><span>Est. round-trip cost</span><span>Est. time</span><span>Convenience</span><span/></div>
+       {transport&&<div style={{border:'1px solid #e5ebf3',borderRadius:12,overflowX:'auto',marginTop:12}}><div className="transport-head"><span>Option</span><span>Est. round-trip cost</span><span>Est. time</span><span>Convenience</span><span/></div>
        {transport.rows.map(row=><button key={row.id} className="transport-row" onClick={()=>chooseTransport(row.id)}>
         <span className="option-name"><RoundIcon id={row.id}/><span>{row.option}<small>{row.costType==='published-rate estimate'?'Published-rate estimate':'Provider check required'}</small></span></span>
         <span className="cost">{money(row.amount)}<small>{row.amount!==null?'Round trip':'No live quote'}</small></span>
