@@ -25,12 +25,12 @@ No bookings, purchases, payments or unauthorized calendar changes.
 - DEN Economy parking rate: published $20/day. Confirm official current rate before purchase.
 - RTD Airport fare: published $10 per paying adult each direction; riders 19 and under ride free. Central Park in-district parking first day free, $2/day afterward. Out-of-district charges differ.
 - Uber/Lyft require approved API access for live prices, so offer links to providers and manual quote entry without inventing current rates.
-- Published RTD A Line departures require verified date-specific licensed GTFS and cannot be described as real-time predictions. Fail closed.
+- RTD A Line departures require a verified published schedule effective on the selected date; holiday exceptions and unknown dates fail closed.
 - Flight evidence from Gmail/Calendar may be incomplete or outdated. Ask user to confirm itinerary.
 
 ## Architecture
 
-Next.js 15 + React, NextAuth Google OAuth, Gmail/Calendar read-only APIs, server-side flight extraction and deduplication, published-price calculations, date-specific RTD GTFS parser (license gated), bearer-key MCP JSON-RPC prototype, Vercel Git deployment, Node regression tests. Legacy index.html and server.py are not used in production.
+Next.js 15 + React, NextAuth Google OAuth, Gmail/Calendar read-only APIs, server-side flight extraction and deduplication, published-price calculations, official A Line timetable parser, with date and holiday safeguards, bearer-key MCP JSON-RPC prototype, Vercel Git deployment, Node regression tests. Legacy index.html and server.py are not used in production.
 
 ## Release criteria
 
@@ -41,4 +41,4 @@ Next.js 15 + React, NextAuth Google OAuth, Gmail/Calendar read-only APIs, server
 
 ## Honest limitations
 
-Unusual airline emails may not parse; there's no live flight status integration. Ground-route timing requires traffic data. No Uber/Lyft price API is connected. RTD verification requires an accepted GTFS license. The MCP endpoint is not yet a registered OAuth-capable ChatGPT custom app or embedded MCP App UI. This is an interactive showcase, not a universal booking platform.
+Unusual airline emails may not parse; there's no live flight status integration. Ground-route timing requires traffic data. No Uber/Lyft price API is connected. RTD timetable verification excludes uncertain holidays and dates outside the official schedule period. The MCP endpoint is not yet a registered OAuth-capable ChatGPT custom app or embedded MCP App UI. This is an interactive showcase, not a universal booking platform.
