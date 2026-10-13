@@ -1,28 +1,44 @@
-# Personal Travel Agent — product and integration specification
+# Personal Travel Agent — product specification
 
-## Status
-This repository contains a **simulation/prototype**. The full product is **not complete**. No booking, payment, live Gmail/Calendar, live fares, RTD verification, hosted authenticated MCP endpoint, or ChatGPT embedded app is operational.
+## What this project does
 
-## Required interaction contract
-1. Discover upcoming flights from user-authorized Gmail and Google Calendar. Normalize itinerary and show airline, flight number, airport codes, dates, local departure/arrival times, travelers, and source provenance. Never treat inferred flights as confirmed.
-2. Ask **Who’s traveling?** Choices: **Just me**, **Whitney and me**, **Whole family including Izzy and Emma**, **Other**. Do not advance until selected.
-3. Show only this four-column comparison: **Option | Est. round-trip cost | Est. time | Convenience**. Rows: **DEN Economy parking**, **Uber/Lyft XL combined**, **Central Park RTD parking + A Line**. Time is one-way. Price is round-trip. Include parking eligibility and car seats/luggage constraints. Identify estimates and source freshness; never invent live prices.
-4. Ask for a transportation selection. Do not show the detailed schedule before this step.
-5. Show concise outbound and return schedules only for selected option, anchored to verified flight local times and realistic buffers.
-6. For RTD, verify **date-specific** A Line service day, exact Central Park departure and DEN arrival outbound, DEN departure and Central Park arrival return against authoritative timetable. Distinguish published schedules from real-time service. If unable to verify any time, explicitly mark unverified; do not fabricate it. Check in-district parking eligibility separately.
-7. Simulation must never make bookings or purchases. Actual bookings require explicit authorization and confirmation.
+A mobile-friendly Denver airport transportation planner with a four-step experience:
 
-## Architecture target
-- Responsive web app (Vercel), protected with authenticated access.
-- Hosted MCP server over HTTPS with authenticated tools and an embedded MCP App UI, sharing the same business rules as web UI.
-- OAuth for Google Gmail/Calendar with least privilege, explicit user consent, encrypted token storage, revoke/disconnect support.
-- Providers for parking rates, rideshare quotes, RTD schedule, and traffic; gracefully mark data unavailable.
-- Durable trip/session state machine so ChatGPT cannot skip the required gates.
-- Automated tests for transitions, cost/time column contract, source attribution, RTD timetable refusal, and access control.
-- GitHub-to-Vercel auto-deployment from main, only after deployment protection is confirmed.
+1. **Find the relevant trip**. Select the next flight itinerary from user-authorized Gmail/Calendar, or use a fictional public demo. Hide unrelated calendar events. Normalize airport codes, local dates/times and duplicate flight evidence. Offer manual entry when data is incomplete.
+2. **Who is traveling?** Just me, Two adults, Whole family, or Other. Use paying adult count for RTD. Young riders 19 and under ride free.
+3. **Compare transportation**. Exactly four columns: Option, Est. round-trip cost, Est. time, Convenience. Options: Denver Economy parking, Uber/Lyft XL, Central Park RTD + A Line. No detailed timeline until user chooses.
+4. **Show selected plan**. Outbound and return timeline, exact published RTD times only when licensed official GTFS data is verified. Otherwise clearly mark times unverified and link to provider.
 
-## Security
-Repository currently PUBLIC as observed October 13, 2026. Keep it free of personal itineraries, family data, credentials, tokens and private addresses. Turn it PRIVATE before personal data is added. X-Robots-Tag and robots.txt are not access controls. Vercel deployment protection must be independently verified. Never expose MCP endpoints without auth.
+No bookings, purchases, payments or unauthorized calendar changes.
 
-## Completion criteria
-Web app and ChatGPT UI both reproduce all stages reliably, authorized flights populate automatically, external costs/schedules are verified or labeled unknown, protected deployments pass an unauthorized access test, and a test itinerary passes end-to-end.
+## Public showcase and personal deployment
+
+- **Public showcase** is a separate Vercel project built with NEXT_PUBLIC_SHOWCASE_ONLY=true.
+- Public showcase contains fictional flight data only, no Google OAuth credentials or MCP secrets.
+- Showcase middleware blocks OAuth, Gmail and MCP endpoints.
+- **Private app** retains Vercel Authentication for all deployments and requires user Google consent.
+- Keep real names, confirmation numbers, email addresses, family details, and actual itineraries out of the public repo.
+
+## Accuracy
+
+- Clearly distinguish published-rate estimates from live purchase quotes.
+- DEN Economy parking rate: published $20/day. Confirm official current rate before purchase.
+- RTD Airport fare: published $10 per paying adult each direction; riders 19 and under ride free. Central Park in-district parking first day free, $2/day afterward. Out-of-district charges differ.
+- Uber/Lyft require approved API access for live prices, so offer links to providers and manual quote entry without inventing current rates.
+- Published RTD A Line departures require verified date-specific licensed GTFS and cannot be described as real-time predictions. Fail closed.
+- Flight evidence from Gmail/Calendar may be incomplete or outdated. Ask user to confirm itinerary.
+
+## Architecture
+
+Next.js 15 + React, NextAuth Google OAuth, Gmail/Calendar read-only APIs, server-side flight extraction and deduplication, published-price calculations, date-specific RTD GTFS parser (license gated), bearer-key MCP JSON-RPC prototype, Vercel Git deployment, Node regression tests. Legacy index.html and server.py are not used in production.
+
+## Release criteria
+
+- npm test and npm run build pass.
+- Browser demo: pick trip, choose travelers, compare all 4 columns, select transport, then show selected plan. Mobile no horizontal overflow.
+- Private deployment Vercel Authentication all; public build with no secrets and private API blocked.
+- Both Vercel production deployments READY on final commit.
+
+## Honest limitations
+
+Unusual airline emails may not parse; there's no live flight status integration. Ground-route timing requires traffic data. No Uber/Lyft price API is connected. RTD verification requires an accepted GTFS license. The MCP endpoint is not yet a registered OAuth-capable ChatGPT custom app or embedded MCP App UI. This is an interactive showcase, not a universal booking platform.
