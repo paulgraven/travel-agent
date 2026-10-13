@@ -1,7 +1,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {calendarSegment,mailEvidence,buildTrips,DEMO_TRIPS} from '../lib/trips.js';
+import {calendarSegment,mailEvidence,mailSegments,buildTrips,DEMO_TRIPS} from '../lib/trips.js';
 test('rejects unrelated calendar entries and canceled flights',()=>{
  assert.equal(calendarSegment({summary:'Morning planning meeting',start:{dateTime:'2026-11-20T09:00:00-07:00'}}),null);
  assert.equal(calendarSegment({status:'cancelled',summary:'Flight UA100 DEN to SEA',start:{dateTime:'2026-11-20T09:00:00-07:00'}}),null);
@@ -46,4 +46,16 @@ test('Westchester County maps to HPN without guessing New York-area airports',()
  assert.equal(x.from,'MSP');assert.equal(x.to,'HPN');
  assert.equal(x.departureLocal,'2026-12-26T12:45');
  assert.equal(x.arrivalLocal,'2026-12-26T16:38');
+});
+
+test('Gmail confirmation text yields each leg with correct local departure and arrival',()=>{
+ const body=['Example Air flight itinerary','Flight to Minneapolis/St. Paul','Nov 20, 2026','Nonstop Economy','5:30 PM 8:32 PM','DEN','2h 2m','MSP','Flight info','UA 4321','Flight to Denver','Nov 23, 2026','Nonstop Economy','1:41 PM 2:55 PM','MSP','2h 14m','DEN','Flight info','UA 4322'].join('\n');
+ const legs=mailSegments({id:'synthetic',subject:'Example confirmation',body});
+ assert.equal(legs.length,2);assert.equal(legs[0].departureLocal,'2026-11-20T17:30');
+ assert.equal(legs[0].arrivalLocal,'2026-11-20T20:32');
+ assert.equal(legs[1].departureLocal,'2026-11-23T13:41');
+ assert.equal(legs[1].arrivalLocal,'2026-11-23T14:55');
+ const grouped=buildTrips(legs,[],'DEN',new Date('2026-10-13T10:00:00-06:00'));
+ assert.equal(grouped.length,1);assert.equal(grouped[0].itineraryComplete,true);
+ assert.equal(grouped[0].gmailCorroborated,true);
 });
