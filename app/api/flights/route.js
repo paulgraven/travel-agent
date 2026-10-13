@@ -1,7 +1,7 @@
 
 import {getToken} from 'next-auth/jwt';
 import {google} from 'googleapis';
-import {calendarSegment,buildTrips} from '../../../lib/trips';
+import {discoverCalendarTrips} from '../../../lib/calendar-discovery';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 const noStore={'Cache-Control':'private, no-store','X-Robots-Tag':'noindex'};
@@ -22,28 +22,6 @@ export async function GET(request){
  try{auth=await googleClient(jwt)}catch(e){return Response.json({error:e.message},{status:401,headers:noStore})}
  const calendar=google.calendar({version:'v3',auth});
  const url=new URL(request.url),home=/^[A-Z]{3}$/.test(url.searchParams.get('home')||'')?url.searchParams.get('home'):'DEN';
- const now=new Date(),end=new Date(now.getTime()+180*86400000);
- const warnings=[],segments=[];let calendarCount=0,calendarsScanned=0;
- try {
-  const calendars=[];let pageToken;
-  do {
-   const response=await calendar.calendarList.list({maxResults:250,pageToken});
-   calendars.push(...(response.data.items||[]).filter(c=>c.accessRole!=='freeBusyReader'));
-   pageToken=response.data.nextPageToken;
-  } while(pageToken);
-  for(const c of calendars){
-   try {
-    let eventPage;
-    do {
-     const response=await calendar.events.list({calendarId:c.id,singleEvents:true,orderBy:'startTime',timeMin:new Date(now.getTime()-86400000).toISOString(),timeMax:end.toISOString(),maxResults:250,pageToken:eventPage});
-     for(const e of response.data.items||[]){calendarCount++;const segment=calendarSegment(e);if(segment)segments.push(segment)}
-     eventPage=response.data.nextPageToken;
-    } while(eventPage);
-    calendarsScanned++;
-   } catch { warnings.push('One calendar could not be read. Other calendars were checked.'); }
-  }
- } catch { return Response.json({error:'Google Calendar could not be read. Reconnect Google and grant read-only Calendar access.'},{status:403,headers:noStore}); }
- const trips=buildTrips(segments,[],home,now);
- if(!trips.length)warnings.push('No upcoming flights identified in Calendar. Confirm your home airport or enter flights manually.');
- return Response.json({trips,warnings,summary:{calendarEventsScanned:calendarCount,calendarsScanned,calendarFlightsFound:segments.length},homeAirport:home,asOf:new Date().toISOString(),source:'Google Calendar only'},{headers:noStore});
+ try{return Response.json(await discoverCalendarTrips(calendar,home),{headers:noStore})}
+ catch{return Response.json({error:'Google Calendar could not be read. Reconnect Google and grant read-only Calendar access.'},{status:403,headers:noStore})}
 }

@@ -64,3 +64,12 @@ Public demo flights are entirely fictional. Private deploys are protected by Ver
 - Copy includes full schedule; /privacy explains data use and revocation.
 
 Release blockers for unrestricted multi-user production: Google consent-screen publishing/verification has not been inspected; production OAuth round trip needs a user-authorized login; Uber/Lyft provider credentials are absent; live driving/flight-status integrations are absent. Production visitors can access the planner and use Google sign-in; preview deployments retain Vercel protection. Do not describe this as fully production-ready until those external requirements pass.
+
+## Traffic integration and external release requirements
+The /api/traffic endpoint calls the official Google Maps Routes API using a server-only GOOGLE_MAPS_API_KEY. It requires a signed-in session and same-origin POST; the fictional showcase cannot incur traffic requests. The address is transmitted only by the visitor's explicit Check traffic action. Current estimates and future traffic forecasts have distinct labels. Without credentials it makes no provider call and reports unavailable.
+
+To activate: enable Routes API in the owner's Google Cloud project with billing and approved quotas; store a Routes-restricted key as a production Secret in Vercel. Do not paste keys into chat or put them in NEXT_PUBLIC variables. Redeploy, then run the authenticated acceptance test.
+
+Uber's standard Price Estimates API requires approval and explicitly prohibits competitive third-party price comparisons: https://developer.uber.com/docs/riders/references/api/v1.2/estimates-price-get . Automatic Uber/Lyft comparison therefore requires separately authorized provider access that permits this use; no scraper or unauthorized endpoint is used. Provider app handoffs remain available. This release does not activate live fare access.
+
+Google login acceptance: sign in, grant Calendar-only permissions, confirm a real itinerary, select travelers, verify three comparison rows, select RTD, check published trains, sign out, and confirm /api/flights returns 401. Repeat with a second Google account to prove isolation. Our automated browser cannot reach accounts.google.com (connection refused); actual Google login/public consent remains unverified.

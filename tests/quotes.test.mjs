@@ -1,0 +1,2 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {bestUserQuote} from '../lib/quotes.js';
+test('quote comparison ignores incomplete or invalid prices, never fabricates fares',()=>{assert.equal(bestUserQuote('',''),null);assert.equal(bestUserQuote('bad','-30'),null);assert.deepEqual(bestUserQuote('125.50','105.25'),{provider:'Lyft',amount:105.25,source:'user-entered round-trip quote'});assert.equal(bestUserQuote('130','').amount,130)});

@@ -4,6 +4,7 @@ import {useEffect,useMemo,useState} from 'react';
 import {Plane,PlaneTakeoff,PlaneLanding,ArrowRight,ArrowLeft,ArrowUpRight,CalendarDays,UsersRound,UserRound,UserRoundPlus,CarFront,TrainFront,RefreshCw,ShieldCheck,CheckCircle2,Clock3,ExternalLink,MapPin,Info,ChevronDown,ChevronRight,Sparkles,Wallet,Copy,Check,SlidersHorizontal,Compass,AlertCircle,LockKeyhole,Navigation,Ticket,Globe2} from 'lucide-react';
 import {DEMO_TRIPS,airportUtc} from '../lib/trips';
 import {makeTimeline} from '../lib/timeline';
+import {bestUserQuote} from '../lib/quotes';
 const SHOWCASE=process.env.NEXT_PUBLIC_SHOWCASE_ONLY==='true';
 const MODES=[{id:'solo',label:'Just me',note:'1 adult',adults:1,children:0,icon:UserRound},{id:'couple',label:'Two adults',note:'2 adults',adults:2,children:0,icon:UsersRound},{id:'family',label:'Whole family',note:'2 adults + children',adults:2,children:2,icon:UsersRound},{id:'custom',label:'Other travelers',note:'Customize group',adults:1,children:0,icon:UserRoundPlus}];
 const icons={parking:CarFront,rideshare:Navigation,rtd:TrainFront};
@@ -32,14 +33,14 @@ function FlightCard({trip,demo}){const out=trip.outbound||trip.segments[0],back=
  <div className="flight-meta"><div><CalendarDays size={14} style={{verticalAlign:'middle',marginRight:5}}/> {localFmt(out.departureLocal,true)}</div><div><strong>{back?localFmt(back.arrivalLocal||back.departureLocal,true):'Return not detected'}</strong></div></div>
  <div className="segment-list">{trip.segments.slice(0,5).map((s,i)=><div className="segment-row" key={s.id||i}><Plane size={15}/><strong>{s.from} → {s.to}</strong> <span className="muted">{s.flightNumber||'Flight number unavailable'}</span><span className="time">{timeFmt(s.departureLocal)}</span></div>)}</div>
  </div>}
-function SummaryTimeline({trip,departureLocal,arrivalLocal,selected,children,rtd,demo,origin,driveMinutes}){
- const plan=makeTimeline({outboundLocal:departureLocal,inboundLocal:arrivalLocal,mode:selected,children,driveMinutes:driveMinutes||null,rtd});
+function SummaryTimeline({trip,departureLocal,arrivalLocal,selected,children,rtd,demo,origin,driveMinutes,traffic}){
+ const plan=makeTimeline({outboundLocal:departureLocal,inboundLocal:arrivalLocal,mode:selected,children,driveMinutes:driveMinutes||null,rtd,traffic});
  const mapsURL='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(origin||'Denver, CO')+'&destination='+encodeURIComponent(selected==='rtd'?'Central Park Station Denver':'Denver International Airport')+'&travelmode=driving';
  return <div>
   {demo&&<div className="notice warning"><Info/> Fictional trip. Times illustrate the workflow.</div>}
   <div className="schedule-columns">{[['Outbound',plan.outbound],['Return',plan.inbound]].map(([title,rows])=><div className="schedule-panel" key={title}><h3>{title} · {title==='Outbound'?trip.outbound.from+' → '+trip.outbound.to:trip.inbound?.from+' → '+trip.inbound?.to}</h3><div className="timeline">{rows.map((row,i)=><div className="timeline-event" key={i}><h4>{row.time} · {row.action}</h4><p>{row.note}</p></div>)}</div></div>)}</div>
   {selected==='rtd'&&<div className="notice warning"><Info/><span>{plan.pair?.verifiedPublishedTimes?rtd.warning:rtd?.error||'Checking published A Line timetable…'} <a href="https://www.rtd-denver.com/service-alerts" target="_blank" rel="noreferrer">Service alerts</a></span></div>}
-  <div className="notice"><Clock3/><span>Driving estimates are entered by you, not live traffic. <a href={mapsURL} target="_blank" rel="noreferrer">Check route in Maps</a></span></div>
+  <div className="notice"><Clock3/><span>{traffic?.available?traffic.type+' · checked '+new Date(traffic.asOf).toLocaleTimeString()+'. Recheck before leaving.':'Driving estimates are entered by you, not live traffic.'} <a href={mapsURL} target="_blank" rel="noreferrer">Check route in Maps</a></span></div>
  </div>;
 }
 export default function Home(){
@@ -48,7 +49,7 @@ export default function Home(){
  const [departureLocal,setDepartureLocal]=useState(DEMO_TRIPS[0].outbound.departureLocal),[arrivalLocal,setArrivalLocal]=useState(DEMO_TRIPS[0].inbound.arrivalLocal),[editTimes,setEditTimes]=useState(false);
  const [manual,setManual]=useState(false),[manualFrom,setManualFrom]=useState('DEN'),[manualTo,setManualTo]=useState('SEA');
  const [transport,setTransport]=useState(null),[selectedTransport,setSelectedTransport]=useState(''),[rtd,setRtd]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notes,setNotes]=useState([]);
- const [driveMinutes,setDriveMinutes]=useState(''),[quote,setQuote]=useState(''),[copied,setCopied]=useState(false),[otherTrips,setOtherTrips]=useState(false);
+ const [traffic,setTraffic]=useState(null),[trafficBusy,setTrafficBusy]=useState(false),[driveMinutes,setDriveMinutes]=useState(''),[uberQuote,setUberQuote]=useState(''),[lyftQuote,setLyftQuote]=useState(''),[quote,setQuote]=useState(''),[copied,setCopied]=useState(false),[otherTrips,setOtherTrips]=useState(false);
  const sample=mode==='demo',canLive=!SHOWCASE;
  const airport=selected?.outbound?.from||manualFrom||home;
  useEffect(()=>{
@@ -56,7 +57,7 @@ export default function Home(){
   fetch('/api/auth/session',{cache:'no-store'}).then(r=>r.json()).then(s=>{if(s?.user){setMode('live');loadTrips('DEN')}}).catch(()=>{});
  },[]);
  function setTrip(t){
-  setSelected(t);setDepartureLocal(t.outbound?.departureLocal||'');setArrivalLocal(t.inbound?.arrivalLocal||'');setSelectedTransport('');setTransport(null);setStep(1);setOtherTrips(false);setEditTimes(!t.inbound);
+  setTraffic(null);setDriveMinutes('');setQuote('');setUberQuote('');setLyftQuote('');setSelected(t);setDepartureLocal(t.outbound?.departureLocal||'');setArrivalLocal(t.inbound?.arrivalLocal||'');setSelectedTransport('');setTransport(null);setStep(1);setOtherTrips(false);setEditTimes(!t.inbound);
  }
  async function loadTrips(which=home){
   if(SHOWCASE)return;setBusy(true);setError('');
@@ -87,7 +88,7 @@ export default function Home(){
  }
  async function chooseTransport(id){
   if(airport!=='DEN'){setError('Verified transportation planning currently supports DEN. Local airport sources are not configured.');return}
-  setSelectedTransport(id);setStep(4);setRtd(null);
+  setSelectedTransport(id);setStep(4);setRtd(null);setTraffic(null);setDriveMinutes('');
   if(id==='rtd'&&airport==='DEN'&&departureLocal&&arrivalLocal){
    try{const qs=new URLSearchParams({outboundDate:departureLocal.slice(0,10),returnDate:arrivalLocal.slice(0,10)});
     const r=await fetch('/api/rtd?'+qs,{cache:'no-store'});setRtd(await r.json());
@@ -95,15 +96,21 @@ export default function Home(){
   }
   
  }
+ async function checkTraffic(){
+  if(!origin.trim()){setError('Enter your starting address to check traffic.');return}
+  setTrafficBusy(true);setError('');setTraffic(null);
+  try{const r=await fetch('/api/traffic',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({origin,destination:selectedTransport==='rtd'?'station':'airport'})});const data=await r.json();setTraffic(data);if(data.available)setDriveMinutes(String(data.minutes));else setError(data.reason||data.error||'Traffic unavailable.')}catch{setError('Traffic could not be checked.')}finally{setTrafficBusy(false)}
+ }
  async function copyPlan(){
   const t=selected;if(!t)return;
-  const plan=makeTimeline({outboundLocal:departureLocal,inboundLocal:arrivalLocal,mode:selectedTransport,children,driveMinutes:driveMinutes||null,rtd});
+  const plan=makeTimeline({outboundLocal:departureLocal,inboundLocal:arrivalLocal,mode:selectedTransport,children,driveMinutes:driveMinutes||null,rtd,traffic});
   const content=['Travel plan',t.segments.map(s=>s.from+' → '+s.to+' '+(s.flightNumber||'')+' '+localFmt(s.departureLocal)).join('\n'),'Travelers: '+adults+' adults, '+children+' children','Transport: '+(transport?.rows?.find(x=>x.id===selectedTransport)?.option||selectedTransport),'Outbound',...plan.outbound.map(r=>r.time+' · '+r.action),'Return',...plan.inbound.map(r=>r.time+' · '+r.action),rtd?.warning||'Times are planning estimates. No bookings made.'].join('\n');
 
   try{await navigator.clipboard.writeText(content);setCopied(true);setTimeout(()=>setCopied(false),2500)}catch{}
  }
+ const bestQuote=bestUserQuote(uberQuote,lyftQuote);
  const picked=transport?.rows?.find(x=>x.id===selectedTransport);
- const displayedCost=selectedTransport==='rideshare'&&Number(quote)>0?Number(quote):picked?.amount;
+ const displayedCost=selectedTransport==='rideshare'&&bestQuote?bestQuote.amount:Number(quote)>0?Number(quote):picked?.amount;
  const isDemoTrip=sample || SHOWCASE;
  return <div>
   <header className="wrap topbar"><a className="brand" href={SHOWCASE?'?demo=1':'/'}><span className="brand-mark"><Compass size={21}/></span>Personal Travel Agent</a>
@@ -140,18 +147,19 @@ export default function Home(){
        {busy&&!transport&&<p className="muted">Calculating published-rate estimates…</p>}
        {transport&&<div style={{border:'1px solid #e5ebf3',borderRadius:12,overflowX:'auto',marginTop:12}}><div className="transport-head"><span>Option</span><span>Est. round-trip cost</span><span>Est. time</span><span>Convenience</span><span/></div>
        {transport.rows.map(row=><button key={row.id} className="transport-row" onClick={()=>chooseTransport(row.id)}>
-        <span className="option-name"><RoundIcon id={row.id}/><span>{row.option}<small>{row.costType}</small></span></span>
-        <span className="cost">{money(row.amount)}<small>{row.amount!==null?'Round trip':'No live quote'}</small></span>
+        <span className="option-name"><RoundIcon id={row.id}/><span>{row.option}<small>{row.id==='rideshare'&&bestQuote?'User-entered quote; not an API fare':row.costType}</small></span></span>
+        <span className="cost">{money(row.id==='rideshare'&&bestQuote?bestQuote.amount:row.amount)}<small>{row.id==='rideshare'&&bestQuote?bestQuote.provider+' · entered by you':row.amount!==null?'Round trip':'No live quote'}</small></span>
         <span className="other-value">{row.time||'Not verified'}</span><span className="other-value convenience">{row.convenience}</span><ChevronRight className="row-action" size={18}/>
        </button>)}
        <div className="source-bar"><span>Sources: <a href="https://www.flydenver.com/reserveparking/" target="_blank" rel="noreferrer">DEN</a> · <a href="https://www.rtd-denver.com/fares-passes/fares" target="_blank" rel="noreferrer">RTD fares</a> · <a href="https://www.rtd-denver.com/how-to-ride/parking" target="_blank" rel="noreferrer">RTD parking</a></span><span>One-way time ranges are indicative for central Denver, not live traffic. Rideshare quotes require provider access.</span></div>
        </div>}
+       {transport&&<details style={{marginTop:14}}><summary>Compare quotes from Uber and Lyft</summary><p className="sub">Automatic provider fares are unavailable. Enter each provider's total for both airport trips, using the vehicle size you need. These are your quotes, not verified API fares.</p><div className="fields"><label className="fieldgroup"><span className="label">Uber round-trip total ($)</span><input className="field" type="number" min="0" value={uberQuote} onChange={e=>setUberQuote(e.target.value)}/></label><label className="fieldgroup"><span className="label">Lyft round-trip total ($)</span><input className="field" type="number" min="0" value={lyftQuote} onChange={e=>setLyftQuote(e.target.value)}/></label></div><a className="btn" href="https://m.uber.com/looking" target="_blank" rel="noreferrer">Open Uber</a> <a className="btn" href="https://www.lyft.com/rider" target="_blank" rel="noreferrer">Open Lyft</a></details>}
        {transport&&<div className="notice"><Info/><span>{children>0?'Recommendation: DEN Economy for fewer transfers with children; RTD for savings.':'Recommendation: compare available parking and RTD estimates; verify ride quotes before choosing.'} {transport.rateVerification?.allVerified?'Published rates checked against official sources.':'Current rate verification incomplete; saved-rate estimates are labeled.'}</span></div>}
        <div className="cta-row" style={{justifyContent:'flex-start'}}><button className="btn btn-plain" onClick={()=>setStep(2)}><ArrowLeft/> Back to travelers</button></div>
       </section>}
       {step===4&&<section><SectionTitle icon={Navigation} title="Your departure & return plan" note="Only the transportation option you selected — no unnecessary schedules."/>
-       <div style={{marginTop:18}}><SummaryTimeline trip={selected} departureLocal={departureLocal} arrivalLocal={arrivalLocal} selected={selectedTransport} travelers={traveler} children={children} rtd={rtd} demo={sample} origin={origin} driveMinutes={driveMinutes}/></div>
-       {picked&&<div className="notice good"><Wallet/><span><strong>Estimated round-trip cost: {selectedTransport==='rideshare'&&quote?money(displayedCost):money(picked.amount)}</strong> · {picked.costDetail}</span></div>}
+       <div style={{marginTop:18}}><SummaryTimeline trip={selected} departureLocal={departureLocal} arrivalLocal={arrivalLocal} selected={selectedTransport} travelers={traveler} children={children} rtd={rtd} demo={sample} origin={origin} driveMinutes={driveMinutes} traffic={traffic}/></div>
+       {picked&&<div className="notice good"><Wallet/><span><strong>Estimated round-trip cost: {selectedTransport==='rideshare'&&(quote||bestQuote)?money(displayedCost):money(picked.amount)}</strong> · {picked.costDetail}</span></div>}
        {selectedTransport==='rideshare'&&<div className="flight-card" style={{marginTop:14}}><strong>Check your live ride quote</strong><p className="sub">Open your provider app for a current XL fare. You can enter the combined outbound + return quote here to compare later; this isn't a live API quote.</p><div className="fields"><label className="fieldgroup"><span className="label">Your round-trip quote ($)</span><input className="field" type="number" min={0} placeholder="Example: 150" value={quote} onChange={e=>setQuote(e.target.value)}/></label></div><div style={{display:'flex',gap:10}}><a className="btn" target="_blank" rel="noreferrer" href="https://m.uber.com/looking">Open Uber <ExternalLink/></a><a className="btn" target="_blank" rel="noreferrer" href="https://www.lyft.com/rider">Open Lyft <ExternalLink/></a></div></div>}
        <div className="cta-row"><button className="btn btn-plain" onClick={()=>setStep(3)}><ArrowLeft/> Other options</button><button className="btn btn-primary" onClick={copyPlan}>{copied?<><Check/> Copied</>:<><Copy/> Copy travel plan</>}</button></div>
       </section>}
@@ -159,7 +167,7 @@ export default function Home(){
     </div>
     <aside className="sidebar"><div className="sidecard"><h3><ShieldCheck/> How this works</h3><p>No bookings or purchases. Flight details come from authorized Google access, or from our fully fictional showcase itinerary.</p><div className="metric"><span>Personal data</span><strong>Private by default</strong></div><div className="metric"><span>Fare sources</span><strong>DEN + RTD official</strong></div><div className="metric"><span>Provider quotes</span><strong>Clearly labeled</strong></div></div>
      <div className="sidecard"><h3><Sparkles/> Built for real life</h3><ul><li>Find the next relevant trip, not every calendar entry</li><li>Autofill flight times without repetitive typing</li><li>Compare full round-trip costs</li><li>Show train departure times only after choosing transit</li><li>Keep estimates separate from verified data</li></ul></div>
-     <div className="sidecard"><h3><MapPin/> Departure point</h3><p>Optional. Helps you check the drive to DEN in Maps.</p><div style={{marginTop:12}}><label className="label">City or starting address</label><input className="field" placeholder="e.g. Central Denver" value={origin} onChange={e=>setOrigin(e.target.value)} autoComplete="off"/></div><label className="label" style={{marginTop:12}}>Drive time, minutes (from Maps)</label><input className="field" type="number" min="1" max="300" value={driveMinutes} onChange={e=>setDriveMinutes(e.target.value)} placeholder="To airport, or Central Park if using RTD"/><p className="tiny" style={{marginTop:9}}>Address stays in this browser session. Maps opens only when you choose it.</p></div>
+     <div className="sidecard"><h3><MapPin/> Departure point</h3><p>Optional. Helps you check the drive to DEN in Maps.</p><div style={{marginTop:12}}><label className="label">City or starting address</label><input className="field" placeholder="e.g. Central Denver" value={origin} onChange={e=>{setOrigin(e.target.value);setTraffic(null);setDriveMinutes('')}} autoComplete="off"/></div><label className="label" style={{marginTop:12}}>Drive time, minutes (from Maps)</label><input className="field" type="number" min="1" max="300" value={driveMinutes} onChange={e=>{setDriveMinutes(e.target.value);setTraffic(null)}} placeholder="To airport, or Central Park if using RTD"/>{!SHOWCASE&&<button className="btn" style={{marginTop:10}} onClick={checkTraffic} disabled={trafficBusy||!selectedTransport}>{trafficBusy?'Checking traffic…':'Check traffic with Google Maps'}</button>}<p className="tiny" style={{marginTop:9}}>Choose transportation first. Traffic check sends your starting address and destination to Google Maps; it does not send Calendar events.</p></div>
      <div className="sidecard"><h3><Info/> About this build</h3><p>A shareable travel-planning case study. The public demo uses fictional flights; production integrations require explicit user authorization and accurate provider sources.</p><a className="link-button" target="_blank" rel="noreferrer" href="https://github.com/paulgraven/travel-agent">View implementation <ArrowUpRight/></a></div></aside>
    </div>
    <footer className="footer"><a href="/privacy">Privacy & data</a><span>Personal Travel Agent · Calendar-first airport planning</span><span>Built with Next.js · Privacy-conscious by design</span></footer>
