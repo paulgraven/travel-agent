@@ -156,7 +156,7 @@ export default function Home(){
         <span className="cost">{money(row.amount)}<small>{row.amount!==null?'Round trip':'No live quote'}</small></span>
         <span className="other-value">{row.time||'Not verified'}</span><span className="other-value convenience">{row.convenience}</span><ChevronRight className="row-action" size={18}/>
        </button>)}
-       <div className="source-bar"><span>Sources: <a href="https://www.flydenver.com/reserveparking/" target="_blank" rel="noreferrer">DEN</a> · <a href="https://www.rtd-denver.com/fares-passes/fares" target="_blank" rel="noreferrer">RTD fares</a> · <a href="https://www.rtd-denver.com/how-to-ride/parking" target="_blank" rel="noreferrer">RTD parking</a></span><span>Live rideshare pricing unavailable without provider authorization.</span></div>
+       <div className="source-bar"><span>Sources: <a href="https://www.flydenver.com/reserveparking/" target="_blank" rel="noreferrer">DEN</a> · <a href="https://www.rtd-denver.com/fares-passes/fares" target="_blank" rel="noreferrer">RTD fares</a> · <a href="https://www.rtd-denver.com/how-to-ride/parking" target="_blank" rel="noreferrer">RTD parking</a></span><span>One-way time ranges are indicative for central Denver, not live traffic. Rideshare quotes require provider access.</span></div>
        </div>}
        <div className="cta-row" style={{justifyContent:'flex-start'}}><button className="btn btn-plain" onClick={()=>setStep(2)}><ArrowLeft/> Back to travelers</button></div>
       </section>}
