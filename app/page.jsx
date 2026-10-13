@@ -21,7 +21,7 @@ function targetTime(v,offset){
  const date=new Date(v+':00Z');if(Number.isNaN(+date))return null;return date.getTime()+offset*60000;
 }
 function targetText(v,offset){const ts=targetTime(v,offset);if(!ts)return 'Unverified';return timeFmt(new Date(ts).toISOString().slice(0,16))}
-function money(v){return Number.isFinite(Number(v))?'$'+Math.round(Number(v)).toLocaleString('en-US'):'Quote needed'}
+function money(v){return !empty(v)&&Number.isFinite(Number(v))?'$'+Math.round(Number(v)).toLocaleString('en-US'):'Quote needed'}
 function RoundIcon({id}){const Icon=icons[id]||CarFront;return <span className={'option-icon '+(id==='rtd'?'train':id==='rideshare'?'ride':'')}><Icon size={18}/></span>}
 function Stepper({step}){return <div className="stepper" aria-label="Planning progress">{['Trip','Travelers','Compare','Your plan'].map((name,i)=><div key={name} style={{display:'contents'}}>{i>0&&<span className="step-line"/>}<div className={'stepper-item '+(step>i+1?'done':step===i+1?'active':'')}><span className="step-number">{step>i+1?<Check size={14}/>:i+1}</span>{name}</div></div>)}</div>}
 function SectionTitle({icon:Icon,title,note}){return <div className="section-heading"><span className="section-icon"><Icon size={19}/></span><div><h2>{title}</h2>{note&&<p>{note}</p>}</div></div>}
@@ -91,12 +91,12 @@ export default function Home(){
   const back={id:'man-back',from:manualTo.toUpperCase(),to:manualFrom.toUpperCase(),flightNumber:null,departure:arrivalLocal,departureLocal:arrivalLocal,arrival:arrivalLocal,arrivalLocal,source:'Manual'};
   setSelected({id:'manual',segments:[first,back],outbound:first,inbound:back,origin:first.from,destination:first.to,start:first.departure,itineraryComplete:false,gmailCorroborated:false});setError('');setManual(false)
  }
- function saveTravelers(){const opt=MODES.find(x=>x.id===traveler);if(traveler!=='custom'){setAdults(opt.adults);setChildren(opt.children)}setStep(3);loadComparison(traveler==='custom'?adults:opt.adults)}
- async function loadComparison(adultCount=adults){
+ function saveTravelers(){if(!arrivalLocal||!departureLocal){setError('Confirm the departure and return times before comparing transportation.');setStep(1);setEditTimes(true);return}const opt=MODES.find(x=>x.id===traveler);if(traveler!=='custom'){setAdults(opt.adults);setChildren(opt.children)}setStep(3);loadComparison(traveler==='custom'?adults:opt.adults)}
+ async function loadComparison(adultCount=adults,districtValue=district){
   setBusy(true);setError('');setSelectedTransport('');
   try{const out=selected?.outbound?.departure||departureLocal,back=selected?.inbound?.arrival||arrivalLocal;
    const useOut=editTimes||manual?departureLocal:out,useBack=editTimes||manual?arrivalLocal:back;
-   const params=new URLSearchParams({outboundFlight:useOut||'',inboundArrival:useBack||'',airport:airport||'DEN',adults:String(adultCount),district});
+   const params=new URLSearchParams({outboundFlight:useOut||'',inboundArrival:useBack||'',airport:airport||'DEN',adults:String(adultCount),district:districtValue});
    const response=await fetch('/api/transport?'+params,{cache:'no-store'});if(!response.ok)throw Error('Pricing information is temporarily unavailable');
    setTransport(await response.json());
   }catch(e){setError(e.message)}finally{setBusy(false)}
@@ -147,7 +147,7 @@ export default function Home(){
       </section>}
       {step===3&&<section><SectionTitle icon={Wallet} title="Compare ways to DEN" note="Round-trip costs and one-way travel time, in one view."/>
        <div className="inline-controls" style={{marginTop:18}}><span className="chip">{MODES.find(t=>t.id===traveler)?.label} · {localFmt(departureLocal)} → {localFmt(arrivalLocal)}</span><button className="link-button" onClick={()=>setStep(2)}><SlidersHorizontal/> Edit travelers</button></div>
-       <div className="inline-controls" style={{marginTop:15,marginBottom:10}}><label className="label" style={{margin:0}}>Central Park parking eligibility <select className="select" style={{width:'auto',marginLeft:10,minHeight:34,padding:'6px 9px'}} value={district} onChange={e=>{setDistrict(e.target.value);loadComparison(adults)}}><option value="in">In RTD district</option><option value="out">Outside district</option></select></label><button className="link-button" onClick={()=>loadComparison(adults)}><RefreshCw/> Refresh</button></div>
+       <div className="inline-controls" style={{marginTop:15,marginBottom:10}}><label className="label" style={{margin:0}}>Central Park parking eligibility <select className="select" style={{width:'auto',marginLeft:10,minHeight:34,padding:'6px 9px'}} value={district} onChange={e=>{setDistrict(e.target.value);loadComparison(adults,e.target.value)}}><option value="in">In RTD district</option><option value="out">Outside district</option></select></label><button className="link-button" onClick={()=>loadComparison(adults)}><RefreshCw/> Refresh</button></div>
        {busy&&!transport&&<p className="muted">Calculating published-rate estimates…</p>}
        {transport&&<div style={{border:'1px solid #e5ebf3',borderRadius:12,overflow:'hidden',marginTop:12}}><div className="transport-head"><span>Option</span><span>Est. round-trip cost</span><span>Est. time</span><span>Convenience</span><span/></div>
        {transport.rows.map(row=><button key={row.id} className="transport-row" onClick={()=>chooseTransport(row.id)}>
