@@ -20,8 +20,8 @@ test('comparison preserves exact four columns and no made-up rideshare quote',()
  assert.equal(comparison.rows[2].amount,46);
 });
 test('GTFS train selector honors flight buffer and return baggage buffer',()=>{
- const trains=[{departCentralPark:'06:12:00',arriveDEN:'06:49:00'},{departCentralPark:'06:42:00',arriveDEN:'07:19:00'}];
+ const trains=[{departCentralPark:'05:57:00',arriveDEN:'06:34:00'},{departCentralPark:'06:12:00',arriveDEN:'06:49:00'},{departCentralPark:'06:42:00',arriveDEN:'07:19:00'}];
  const returnTrains=[{departDEN:'18:40:00',arriveCentralPark:'19:10:00'},{departDEN:'19:10:00',arriveCentralPark:'19:39:00'}];
  const r=selectTrainPair({outboundSchedule:trains,returnSchedule:returnTrains,outboundLocal:'2026-11-20T09:25',inboundLocal:'2026-11-23T17:55',travelers:'family'});
- assert.equal(r.outbound.departCentralPark,'06:12:00');assert.equal(r.inbound.departDEN,'19:10:00');
+ assert.equal(r.outbound.departCentralPark,'05:57:00');assert.equal(r.inbound.departDEN,'19:10:00');
 });

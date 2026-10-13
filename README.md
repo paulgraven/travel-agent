@@ -9,12 +9,12 @@ A polished, responsive interactive app demonstrating how flight confirmations ca
 - [Public employer showcase](https://travel-agent-showcase-gravenpaul-2504s-projects.vercel.app) — fictional itinerary, no Google connection or private credentials.
 - [Private Google-connected app](https://travel-agent-smoky.vercel.app) — Vercel-authenticated; Google OAuth consent required.
 
-The public showcase is intended for anyone to try. It is separate from the private application; its deployed environment has only NEXT_PUBLIC_SHOWCASE_ONLY=true and no Google credentials, and middleware rejects Gmail/Auth/MCP APIs.
+The public showcase is intended for anyone to try. It is separate from the private application; its deployed environment has only NEXT_PUBLIC_SHOWCASE_ONLY=true and no Google credentials, and middleware rejects Calendar/Auth/MCP APIs.
 
 ## What works
 
 - Next.js responsive design with four-step guided trip flow and manual entry.
-- Flight grouping and deduplication from Google Calendar, plus airline-email confirmation extraction from Gmail (user consent required). Time-zone normalization for common airport codes.
+- Flight grouping and deduplication from Google Calendar, across accessible calendars with pagination (read-only user consent required). Time-zone normalization for common airport codes.
 - Date/time prepopulation from selected trip and traveler-aware RTD fares.
 - DEN Economy parking and RTD A Line published-rate transportation estimates with references and clearly stated assumptions.
 - Provider handoff and manual round-trip quote entry for Uber/Lyft XL.
@@ -43,7 +43,7 @@ Deployment uses Next.js. Legacy index.html and server.py are historical prototyp
 
 ## Google OAuth for private deployment
 
-Enable Gmail API and Google Calendar API in Google Cloud and configure Google OAuth Web Application redirect URI:
+Enable Google Calendar API in Google Cloud and configure Google OAuth Web Application redirect URI:
 
     https://travel-agent-smoky.vercel.app/api/auth/callback/google
 
@@ -52,3 +52,15 @@ Set Vercel environment variables GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, NEXTAUT
 ## Portfolio and security
 
 Public demo flights are entirely fictional. Private deploys are protected by Vercel Authentication, and the public demo has no Google secrets. Real booking numbers, user emails, home addresses and flight confirmations are not stored in this repository. Never copy production secrets into demo deployment. Google read-only scopes are sensitive/restricted and broader public distribution may require Google verification.
+
+## October 13 Calendar-only rebuild
+- Google OAuth requests Calendar read-only, never Gmail. No Gmail API calls.
+- Scans calendar lists and event pagination; failed calendars produce warnings.
+- Full selected-mode schedules, terminal walk and baggage buffers, conditional lounge goal.
+- User-entered drive minutes; no invented live traffic.
+- Official DEN/RTD rate sources checked at runtime; failed checks explicitly label saved estimates.
+- RTD effective-period and service-day verification; date-specific exceptions explicitly unverified.
+- In-district Central Park parking default; one seat per child, checked bags, stroller, XL capacity check.
+- Copy includes full schedule; /privacy explains data use and revocation.
+
+Release blockers for unrestricted multi-user production: Google consent-screen publishing/verification has not been inspected; production OAuth round trip needs a user-authorized login; Uber/Lyft provider credentials are absent; live driving/flight-status integrations are absent. Existing Vercel account-level protection is preserved. Do not describe this as fully production-ready until those external requirements pass.

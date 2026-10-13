@@ -37,7 +37,7 @@ export async function GET(request){
  if(!valid(outboundDate)||!valid(returnDate))return Response.json({verified:false,error:'Use outboundDate and returnDate as YYYY-MM-DD.'},{status:400});
  if(!service(outboundDate)||!service(returnDate))return Response.json({verified:false,error:'The requested date is a possible holiday or special-service day. Confirm the official RTD schedule for this date.',officialSchedule:OFFICIAL},{status:200,headers:{'Cache-Control':'no-store'}});
  try{
-  const response=await fetch(OFFICIAL,{next:{revalidate:14400}});
+  const response=await fetch(OFFICIAL,{cache:'no-store',signal:AbortSignal.timeout(15000)});
   if(!response.ok)throw Error('RTD source unavailable');
   const html=await response.text();
   const match=html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
@@ -55,6 +55,6 @@ export async function GET(request){
   }
   const outbound=dateRows(outboundDate),returned=dateRows(returnDate);
   if(!outbound||!returned)throw Error('Date-specific service unavailable');
-  return Response.json({verified:true,verificationType:'official published RTD A Line timetable, not realtime',source:OFFICIAL,asOf:new Date().toISOString(),schedulePeriod:{start:board.startDate,end:board.endDate},outbound,return:returned},{headers:{'Cache-Control':'no-store'}});
+  return Response.json({verified:true,verificationType:'published service-day timetable within effective period',dateSpecificExceptionsVerified:false,realtimeVerified:false,warning:'Published train times verified. Date-specific exceptions, disruptions and punctuality are not verified.',source:OFFICIAL,asOf:new Date().toISOString(),schedulePeriod:{start:board.startDate,end:board.endDate},outbound,return:returned},{headers:{'Cache-Control':'no-store'}});
  }catch(e){return Response.json({verified:false,error:'Could not verify RTD published A Line timetable.',officialSchedule:OFFICIAL},{status:502,headers:{'Cache-Control':'no-store'}})}
 }

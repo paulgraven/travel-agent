@@ -1,4 +1,5 @@
 
+import {checkRates} from '../../../lib/rates';
 import {compareOptions,SOURCES} from '../../../lib/planner';
 export const dynamic='force-dynamic';
 export async function GET(request){
@@ -9,7 +10,7 @@ export async function GET(request){
   outboundFlight:q.get('outboundFlight')||q.get('parkingStart'),
   inboundArrival:q.get('inboundArrival')||q.get('parkingEnd'),
   adults:Number.isFinite(adults)?adults:1,
-  district:q.get('district')==='out'?'out':'in',
+  district:'in',
   airport:homeAirport
  });
  if(!options.supported){
@@ -20,5 +21,9 @@ export async function GET(request){
        {id:'rtd',option:'Public transit',amount:null,costType:'local service data unavailable',time:null,convenience:'Consult the local transit provider'}
      ]},{headers:{'Cache-Control':'no-store'}});
  }
+ const verification=await checkRates();
+ options.rateVerification=verification;
+ for(const row of options.rows){if(row.id==='parking'&&!verification.checks[0].verified||row.id==='rtd'&&(!verification.checks[1].verified||!verification.checks[2].verified)){row.costType='saved-rate estimate; current rate unverified';row.costDetail+=' · Current source could not be verified.'}}
+ options.notes.push('Rate sources checked '+verification.checkedAt+'. Live ride fares unavailable: provider credentials not configured.');
  return Response.json(options,{headers:{'Cache-Control':'no-store'}});
 }
