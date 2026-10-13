@@ -1,42 +1,66 @@
+
 import {getToken} from 'next-auth/jwt';
 import {google} from 'googleapis';
+import {calendarSegment,mailEvidence,buildTrips} from '../../../lib/trips';
+export const runtime='nodejs';
 export const dynamic='force-dynamic';
-const code=/\b(?:DEN|MSP|JFK|LGA|EWR|ORD|MDW|LAX|SFO|SEA|ATL|DFW|DAL|IAH|HOU|PHX|LAS|BOS|DCA|IAD|BWI|MIA|FLL|MCO|TPA|SAN|SLC|PDX|DTW|CLT|HOU|HPN)\b/g;
-const airline=/\b(?:UA|DL|WN|AA|AS|B6|F9|NK|United|Delta|Southwest|American|Alaska|JetBlue|Frontier|Spirit)\s*(?:Airlines?)?\s*(?:flight|#|number|no\.?|:)??\s*#?\s*(\d{1,4})\b/i;
-function localDate(s){return typeof s==='string'&&/^\d{4}-\d{2}-\d{2}T/.test(s)?s.slice(0,16):null}
-function extract(e){
- const summary=e.summary||'',desc=e.description||'',location=e.location||'',text=[summary,desc,location].join(' ');
- if(e.status==='cancelled'||!e.start?.dateTime||!/\b(flight|airlines?|airport|depart|arriv|\b(?:UA|DL|WN|AA|AS|B6|F9|NK)\s*\d{2,4})\b/i.test(text))return null;
- const airports=[...new Set((text.match(code)||[]))],match=text.match(airline),route=summary.match(/\b([A-Z]{3})\s*(?:→|->|to|–|-)\s*([A-Z]{3})\b/i);
- const from=route?.[1]||airports[0]||null,to=route?.[2]||airports.find(a=>a!==from)||null;
- return {id:e.id,summary,from,to,flight:match?match[0].replace(/\s+/g,' ').trim():null,departure:e.start.dateTime,arrival:e.end?.dateTime||null,departureLocal:localDate(e.start.dateTime),arrivalLocal:localDate(e.end?.dateTime),source:'calendar',confidence:route&&match?'high':from&&to?'medium':'low',link:e.htmlLink||null};
+const noStore={'Cache-Control':'private, no-store','X-Robots-Tag':'noindex'};
+function readPart(part,output,limit=13000){
+ if(!part||output.length>4)return;
+ if(part.mimeType==='text/plain'&&part.body?.data){
+  try{output.push(Buffer.from(part.body.data.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8').slice(0,limit))}catch{}
+ }
+ for(const p of part.parts||[])readPart(p,output,limit);
+ if(!output.length&&part.mimeType==='text/html'&&part.body?.data){
+  try{output.push(Buffer.from(part.body.data.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8').slice(0,limit).replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi,' '))}catch{}
+ }
 }
-function group(items){
- const byDate=new Map();
- for(const f of items){const d=f.departureLocal?.slice(0,10);if(!d)continue;const key=[d,f.from||'',f.to||'',f.flight||''].join('|');if(!byDate.has(key))byDate.set(key,f);else if(f.confidence==='high')byDate.set(key,f)}
- const all=[...byDate.values()].sort((a,b)=>a.departure.localeCompare(b.departure));
- const trips=[];for(const f of all){if(!f.from||!f.to)continue;let trip=trips.find(t=>t.segments.length<5&&t.segments[t.segments.length-1].to===f.from&&Date.parse(f.departure)-Date.parse(t.segments[t.segments.length-1].departure)<21*86400000&&Date.parse(f.departure)>Date.parse(t.segments[t.segments.length-1].departure));if(!trip){trip={id:'trip-'+trips.length,segments:[]};trips.push(trip)}trip.segments.push(f)}
- return trips.map(t=>({...t,start:t.segments[0].departure,end:t.segments[t.segments.length-1].arrival||t.segments[t.segments.length-1].departure,origin:t.segments[0].from,destination:t.segments[0].to})).sort((a,b)=>a.start.localeCompare(b.start));
+async function googleClient(token){
+ let accessToken=token.googleAccessToken;
+ if(token.googleExpiresAt&&Date.now()>=Number(token.googleExpiresAt)-60_000){
+  if(!token.googleRefreshToken)throw Error('Your Google session expired. Reconnect Google.');
+  const response=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:process.env.GOOGLE_CLIENT_ID,client_secret:process.env.GOOGLE_CLIENT_SECRET,refresh_token:token.googleRefreshToken,grant_type:'refresh_token'}),cache:'no-store'});
+  if(!response.ok)throw Error('Your Google session needs reauthorization. Reconnect Google.');
+  const data=await response.json();accessToken=data.access_token;
+ }
+ const client=new google.auth.OAuth2();client.setCredentials({access_token:accessToken});return client;
 }
 export async function GET(request){
- const token=await getToken({req:request,secret:process.env.NEXTAUTH_SECRET});
- if(!token?.googleAccessToken)return Response.json({error:'Google sign-in required'},{status:401});
- const auth=new google.auth.OAuth2();auth.setCredentials({access_token:token.googleAccessToken});
- const gmail=google.gmail({version:'v1',auth}),calendar=google.calendar({version:'v3',auth});
- const start=new Date(),end=new Date(start.getTime()+180*86400000);
- const [mailResult,calendarResult]=await Promise.allSettled([
- gmail.users.messages.list({userId:'me',q:'(subject:(flight OR itinerary OR e-ticket OR confirmation) OR from:(united.com OR delta.com OR southwest.com OR aa.com)) newer_than:180d',maxResults:45}),
- calendar.events.list({calendarId:'primary',timeMin:start.toISOString(),timeMax:end.toISOString(),singleEvents:true,maxResults:250,orderBy:'startTime'})
+ const jwt=await getToken({req:request,secret:process.env.NEXTAUTH_SECRET});
+ if(!jwt?.googleAccessToken)return Response.json({error:'Connect your Google account to find flights.'},{status:401,headers:noStore});
+ let auth;
+ try{auth=await googleClient(jwt)}catch(e){return Response.json({error:e.message},{status:401,headers:noStore})}
+ const calendar=google.calendar({version:'v3',auth}),gmail=google.gmail({version:'v1',auth});
+ const url=new URL(request.url),home=/^[A-Z]{3}$/.test(url.searchParams.get('home')||'')?url.searchParams.get('home'):'DEN';
+ const now=new Date(),end=new Date(now.getTime()+180*86400000);
+ const [calResult,mailResult]=await Promise.allSettled([
+   calendar.events.list({calendarId:'primary',singleEvents:true,orderBy:'startTime',timeMin:new Date(now.getTime()-86400000).toISOString(),timeMax:end.toISOString(),maxResults:250}),
+   gmail.users.messages.list({userId:'me',maxResults:60,q:'newer_than:365d {subject:itinerary subject:flight subject:e-ticket subject:confirmation subject:reservation from:united.com from:delta.com from:southwest.com from:aa.com from:jetblue.com}'})
  ]);
- const output={trips:[],warnings:[],mailHints:[]};
- if(calendarResult.status==='fulfilled'){
-  const flights=(calendarResult.value.data.items||[]).map(extract).filter(Boolean);
-  output.trips=group(flights);
- }else output.warnings.push('Calendar access unavailable');
+ const warnings=[],calendarFlights=[],mailFlights=[];let calendarCount=0,emailCount=0;
+ if(calResult.status==='fulfilled'){
+   const items=calResult.value.data.items||[];
+   calendarCount=items.length;
+   for(const e of items){const flight=calendarSegment(e);if(flight)calendarFlights.push(flight)}
+   if(calResult.value.data.nextPageToken)warnings.push('Only the first calendar results page was inspected; some later events may be missing.');
+ }else warnings.push('Google Calendar data could not be read. Check Calendar permissions.');
  if(mailResult.status==='fulfilled'){
-  const results=await Promise.allSettled((mailResult.value.data.messages||[]).slice(0,25).map(m=>gmail.users.messages.get({userId:'me',id:m.id,format:'metadata',metadataHeaders:['Subject','Date']})));
-  output.mailHints=results.filter(r=>r.status==='fulfilled').map(r=>({subject:r.value.data.payload?.headers?.find(h=>h.name.toLowerCase()==='subject')?.value||'',date:r.value.data.payload?.headers?.find(h=>h.name.toLowerCase()==='date')?.value||''})).filter(x=>/flight|itinerary|ticket|confirmation|airlines?/i.test(x.subject)).slice(0,8);
- }else output.warnings.push('Gmail access unavailable');
- if(!output.trips.length)output.warnings.push('No complete upcoming flight itineraries could be extracted from Calendar. Check flight details manually; email hints are not confirmed bookings.');
- return Response.json(output,{headers:{'Cache-Control':'private, no-store'}});
+   const ids=(mailResult.value.data.messages||[]).slice(0,48);
+   for(let i=0;i<ids.length;i+=8){
+     const chunk=await Promise.allSettled(ids.slice(i,i+8).map(m=>gmail.users.messages.get({userId:'me',id:m.id,format:'full'})));
+     for(const response of chunk){
+       if(response.status!=='fulfilled')continue;
+       emailCount++;
+       const m=response.value.data;
+       const header=name=>(m.payload?.headers||[]).find(x=>x.name.toLowerCase()===name)?.value||'';
+       const parts=[];readPart(m.payload,parts);
+       const evidence=mailEvidence({id:m.id,subject:header('subject'),body:parts.join(' ').slice(0,20000)});
+       if(evidence)mailFlights.push(evidence);
+     }
+   }
+ }else warnings.push('Gmail messages could not be searched. Check Gmail permissions.');
+ const trips=buildTrips(calendarFlights,mailFlights,home,now);
+ if(!trips.length)warnings.push('No confirmed future trips were identified. Try a different home airport or add flight details manually.');
+ if(!calendarFlights.length&&mailFlights.length)warnings.push('Gmail yielded possible flight confirmations, but the dates or airport details were not complete enough to construct a reliable itinerary.');
+ return Response.json({trips,warnings,summary:{calendarEventsScanned:calendarCount,calendarFlightsFound:calendarFlights.length,emailsInspected:emailCount,emailEvidenceFound:mailFlights.length},homeAirport:home,asOf:new Date().toISOString()},{headers:noStore});
 }
