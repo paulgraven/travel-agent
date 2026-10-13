@@ -1,7 +1,7 @@
 
 import {getToken} from 'next-auth/jwt';
 import {google} from 'googleapis';
-import {calendarSegment,mailEvidence,buildTrips} from '../../../lib/trips';
+import {calendarSegment,mailEvidence,mailSegments,buildTrips} from '../../../lib/trips';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 const noStore={'Cache-Control':'private, no-store','X-Robots-Tag':'noindex'};
@@ -37,7 +37,7 @@ export async function GET(request){
    calendar.events.list({calendarId:'primary',singleEvents:true,orderBy:'startTime',timeMin:new Date(now.getTime()-86400000).toISOString(),timeMax:end.toISOString(),maxResults:250}),
    gmail.users.messages.list({userId:'me',maxResults:60,q:'newer_than:365d {subject:itinerary subject:flight subject:e-ticket subject:confirmation subject:reservation from:united.com from:delta.com from:southwest.com from:aa.com from:jetblue.com}'})
  ]);
- const warnings=[],calendarFlights=[],mailFlights=[];let calendarCount=0,emailCount=0;
+ const warnings=[],calendarFlights=[],mailFlights=[],mailConfirmedSegments=[];let calendarCount=0,emailCount=0;
  if(calResult.status==='fulfilled'){
    const items=calResult.value.data.items||[];
    calendarCount=items.length;
@@ -54,13 +54,15 @@ export async function GET(request){
        const m=response.value.data;
        const header=name=>(m.payload?.headers||[]).find(x=>x.name.toLowerCase()===name)?.value||'';
        const parts=[];readPart(m.payload,parts);
-       const evidence=mailEvidence({id:m.id,subject:header('subject'),body:parts.join(' ').slice(0,20000)});
+       const email={id:m.id,subject:header('subject'),body:parts.join('\n').slice(0,50000)};
+       const evidence=mailEvidence(email);
        if(evidence)mailFlights.push(evidence);
+       for(const leg of mailSegments(email))mailConfirmedSegments.push(leg);
      }
    }
  }else warnings.push('Gmail messages could not be searched. Check Gmail permissions.');
- const trips=buildTrips(calendarFlights,mailFlights,home,now);
+ const trips=buildTrips([...calendarFlights,...mailConfirmedSegments],mailFlights,home,now);
  if(!trips.length)warnings.push('No confirmed future trips were identified. Try a different home airport or add flight details manually.');
  if(!calendarFlights.length&&mailFlights.length)warnings.push('Gmail yielded possible flight confirmations, but the dates or airport details were not complete enough to construct a reliable itinerary.');
- return Response.json({trips,warnings,summary:{calendarEventsScanned:calendarCount,calendarFlightsFound:calendarFlights.length,emailsInspected:emailCount,emailEvidenceFound:mailFlights.length},homeAirport:home,asOf:new Date().toISOString()},{headers:noStore});
+ return Response.json({trips,warnings,summary:{calendarEventsScanned:calendarCount,calendarFlightsFound:calendarFlights.length,emailsInspected:emailCount,emailEvidenceFound:mailFlights.length,confirmedEmailLegs:mailConfirmedSegments.length},homeAirport:home,asOf:new Date().toISOString()},{headers:noStore});
 }
