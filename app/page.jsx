@@ -103,12 +103,12 @@ export default function Home(){
  }
  async function chooseTransport(id){
   setSelectedTransport(id);setStep(4);setRtd(null);
-  if(id==='rtd'&&!sample&&airport==='DEN'&&departureLocal&&arrivalLocal){
+  if(id==='rtd'&&airport==='DEN'&&departureLocal&&arrivalLocal){
    try{const qs=new URLSearchParams({outboundDate:departureLocal.slice(0,10),returnDate:arrivalLocal.slice(0,10)});
     const r=await fetch('/api/rtd?'+qs,{cache:'no-store'});setRtd(await r.json());
    }catch{setRtd({error:'The RTD timetable could not be checked.'})}
   }
-  if(id==='rtd'&&sample)setRtd({verified:false,error:'This demonstration intentionally does not present fictional RTD departure times.'});
+  
  }
  async function copyPlan(){
   const t=selected;if(!t)return;
