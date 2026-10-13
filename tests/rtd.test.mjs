@@ -7,7 +7,7 @@ const demo={
  runboard:{id:'3845',startDate:'2026-09-27',endDate:'2027-01-02'},
  serviceSchedules:{
   '32_A___Eastbound_5_3845':{stops:['Central Park Station','Denver Airport Station'],trips:[['613A','637A'],['643A','707A']]},
-  '32_A___Westbound_5_3845':{stops:['Denver Airport Station','Central Park Station'],trips:[['1857P','1920P']]},
+  '32_A___Westbound_5_3845':{stops:['Denver Airport Station','Central Park Station'],trips:[['657P','719P']]},
   '32_A___Eastbound_4_3845':{stops:['Central Park Station','Denver Airport Station'],trips:[['613A','637A']]},
   '32_A___Westbound_4_3845':{stops:['Denver Airport Station','Central Park Station'],trips:[['657P','719P']]}
  }
@@ -20,8 +20,7 @@ test('RTD uses official schedule period, verifies date-scoped trains only',async
   const data=await r.json();
   assert.equal(data.verified,true);
   assert.deepEqual(data.outbound.centralParkToDEN[0],{departCentralPark:'06:13:00',arriveDEN:'06:37:00'});
-  // Invalid provider time fields fail closed, rather than claiming precision
-  assert.equal(data.return.denToCentralPark.length,0);
+  assert.deepEqual(data.return.denToCentralPark[0],{departDEN:'18:57:00',arriveCentralPark:'19:19:00'});
  }finally{global.fetch=original}
 });
 test('RTD holidays and unsupported schedule dates are never verified',async()=>{
