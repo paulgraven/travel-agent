@@ -1,12 +1,60 @@
-import AdmZip from 'adm-zip';
-export const dynamic='force-dynamic';export const runtime='nodejs';
-const FEED='https://www.rtd-denver.com/files/gtfs/google_transit.zip';
-function csv(data){const lines=data.replace(/\r/g,'').split('\n'),rows=[];for(const line of lines){if(!line)continue;let parts=[],part='',quoted=false;for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'){if(quoted&&line[i+1]==='"'){part+='"';i++}else quoted=!quoted}else if(c===','&&!quoted){parts.push(part);part=''}else part+=c}parts.push(part);rows.push(parts)}const keys=rows.shift()||[];return rows.map(a=>Object.fromEntries(keys.map((k,i)=>[k,a[i]||''])));}
-function active(date,calendar,exceptions){const d=date.replaceAll('-',''),day=new Date(date+'T12:00:00Z').getUTCDay(),name=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][day],set=new Set(calendar.filter(x=>x.start_date<=d&&x.end_date>=d&&x[name]==='1').map(x=>x.service_id));for(const e of exceptions){if(e.date===d){if(e.exception_type==='1')set.add(e.service_id);else if(e.exception_type==='2')set.delete(e.service_id)}}return set}
-function schedules(date,data){const services=active(date,data.calendar,data.exceptions),routeIds=new Set(data.routes.filter(x=>x.route_short_name?.trim()==='A').map(x=>x.route_id)),trips=new Set(data.trips.filter(x=>routeIds.has(x.route_id)&&services.has(x.service_id)).map(x=>x.trip_id));const stationIds={central:new Set(data.stops.filter(x=>/central park station/i.test(x.stop_name)).map(x=>x.stop_id)),airport:new Set(data.stops.filter(x=>/denver airport station/i.test(x.stop_name)).map(x=>x.stop_id))};const group=new Map();for(const x of data.times){if(!trips.has(x.trip_id))continue;if(!stationIds.central.has(x.stop_id)&&!stationIds.airport.has(x.stop_id))continue;const arr=group.get(x.trip_id)||[];arr.push(x);group.set(x.trip_id,arr)}const outbound=[],inbound=[];for(const stops of group.values()){const c=stops.find(x=>stationIds.central.has(x.stop_id)),a=stops.find(x=>stationIds.airport.has(x.stop_id));if(!c||!a)continue;if(Number(c.stop_sequence)<Number(a.stop_sequence))outbound.push({departCentralPark:c.departure_time,arriveDEN:a.arrival_time});else inbound.push({departDEN:a.departure_time,arriveCentralPark:c.arrival_time})}return {date,centralParkToDEN:outbound.sort((a,b)=>a.departCentralPark.localeCompare(b.departCentralPark)),denToCentralPark:inbound.sort((a,b)=>a.departDEN.localeCompare(b.departDEN))}}
+
+export const dynamic='force-dynamic';
+export const runtime='nodejs';
+const OFFICIAL='https://app.rtd-denver.com/route/A/schedule';
+const HOLIDAYS=new Set(['2026-11-26','2026-12-25','2027-01-01','2026-10-12','2026-11-11','2026-12-24','2026-12-31']);
+const valid=d=>/^\d{4}-\d\d-\d\d$/.test(d||'')&&!Number.isNaN(Date.parse(d));
+function service(date){
+ const d=new Date(date+'T12:00:00Z').getUTCDay();
+ if(HOLIDAYS.has(date))return null;
+ return d===0?2:d===6?1:d===5?5:4;
+}
+function convertTime(code){
+ const m=String(code||'').match(/^(\d{1,2})(\d{2})([AP])$/i);
+ if(!m)return null;
+ const hour=Number(m[1]),minute=Number(m[2]);
+ if(hour<1||hour>12||minute>59)return null;
+ const h=hour%12+(m[3].toUpperCase()==='P'?12:0);
+ return String(h).padStart(2,'0')+':'+String(minute).padStart(2,'0')+':00';
+}
+function readSchedule(schedules,board,direction,kind){
+ const schedule=schedules['32_A___'+direction+'_'+kind+'_'+board];
+ if(!schedule?.stops?.length||!schedule?.trips?.length)return null;
+ const central=schedule.stops.findIndex(x=>/Central Park Station/i.test(x));
+ const den=schedule.stops.findIndex(x=>/Denver Airport Station/i.test(x));
+ if(central<0||den<0)return null;
+ const keys=direction==='Eastbound'?['departCentralPark','arriveDEN']:['departDEN','arriveCentralPark'];
+ const rows=schedule.trips.map(t=>({
+    [keys[0]]:convertTime(t[direction==='Eastbound'?central:den]),
+    [keys[1]]:convertTime(t[direction==='Eastbound'?den:central])
+ })).filter(x=>x[keys[0]]&&x[keys[1]]);
+ if(!rows.length)return null;
+ return rows;
+}
 export async function GET(request){
- const url=new URL(request.url),outboundDate=url.searchParams.get('outboundDate'),returnDate=url.searchParams.get('returnDate');
- if(![outboundDate,returnDate].every(x=>/^\d{4}-\d{2}-\d{2}$/.test(x||'')&&!Number.isNaN(Date.parse(x))))return Response.json({error:'Valid outboundDate and returnDate (YYYY-MM-DD) are required'},{status:400});
- if(process.env.RTD_GTFS_LICENSE_ACCEPTED!=='true')return Response.json({verified:false,error:'RTD GTFS license agreement must be reviewed and accepted by the app owner before automated use',license:'https://www.rtd-denver.com/open-records/open-spatial-information/gtfs',officialSchedule:'https://app.rtd-denver.com/route/A/schedule'},{status:503});
- try{const response=await fetch(FEED,{next:{revalidate:21600}});if(!response.ok)throw Error('Feed download failed');const buf=Buffer.from(await response.arrayBuffer());const zip=new AdmZip(buf);const read=name=>{const entry=zip.getEntry(name);return entry?csv(entry.getData().toString('utf8')):[]};const data={routes:read('routes.txt'),trips:read('trips.txt'),stops:read('stops.txt'),times:read('stop_times.txt'),calendar:read('calendar.txt'),exceptions:read('calendar_dates.txt')};const result={outbound:schedules(outboundDate,data),return:schedules(returnDate,data)};return Response.json({verified:true,verificationType:'published RTD GTFS timetable; not real-time',source:FEED,retrievedAt:new Date().toISOString(),...result},{headers:{'Cache-Control':'no-store'}})}catch{return Response.json({verified:false,error:'RTD timetable could not be retrieved or parsed',officialSchedule:'https://app.rtd-denver.com/route/A/schedule'},{status:502})}
+ const q=new URL(request.url).searchParams;
+ const outboundDate=q.get('outboundDate'),returnDate=q.get('returnDate');
+ if(!valid(outboundDate)||!valid(returnDate))return Response.json({verified:false,error:'Use outboundDate and returnDate as YYYY-MM-DD.'},{status:400});
+ if(!service(outboundDate)||!service(returnDate))return Response.json({verified:false,error:'The requested date is a possible holiday or special-service day. Confirm the official RTD schedule for this date.',officialSchedule:OFFICIAL},{status:200,headers:{'Cache-Control':'no-store'}});
+ try{
+  const response=await fetch(OFFICIAL,{next:{revalidate:14400}});
+  if(!response.ok)throw Error('RTD source unavailable');
+  const html=await response.text();
+  const match=html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
+  if(!match)throw Error('Official schedule data missing');
+  const data=JSON.parse(match[1])?.props?.pageProps;
+  const board=data?.runboard;
+  if(data?.routeShortName!=='A'||!board?.id||!board?.startDate||!board?.endDate)throw Error('Invalid route timetable');
+  if([outboundDate,returnDate].some(d=>d<board.startDate||d>board.endDate)){
+   return Response.json({verified:false,error:'RTD official schedule does not currently cover these dates.',availablePeriod:{start:board.startDate,end:board.endDate},officialSchedule:OFFICIAL},{headers:{'Cache-Control':'no-store'}});
+  }
+  function dateRows(date){
+   const day=service(date),east=readSchedule(data.serviceSchedules,board.id,'Eastbound',day),west=readSchedule(data.serviceSchedules,board.id,'Westbound',day);
+   if(!east||!west)return null;
+   return {date,serviceType:day,centralParkToDEN:east,denToCentralPark:west};
+  }
+  const outbound=dateRows(outboundDate),returned=dateRows(returnDate);
+  if(!outbound||!returned)throw Error('Date-specific service unavailable');
+  return Response.json({verified:true,verificationType:'official published RTD A Line timetable, not realtime',source:OFFICIAL,asOf:new Date().toISOString(),schedulePeriod:{start:board.startDate,end:board.endDate},outbound,return:returned},{headers:{'Cache-Control':'no-store'}});
+ }catch(e){return Response.json({verified:false,error:'Could not verify RTD published A Line timetable.',officialSchedule:OFFICIAL},{status:502,headers:{'Cache-Control':'no-store'}})}
 }
