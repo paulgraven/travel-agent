@@ -1,0 +1,1 @@
+export const metadata={title:'Personal Travel Agent',robots:{index:false,follow:false}};export default function RootLayout({children}){return <html lang="en"><body style={{fontFamily:'system-ui',background:'#f5f6f8',color:'#17283a',maxWidth:900,margin:'40px auto',padding:20}}>{children}</body></html>}
