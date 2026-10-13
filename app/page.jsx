@@ -2,7 +2,7 @@
 'use client';
 import {useEffect,useMemo,useState} from 'react';
 import {Plane,PlaneTakeoff,PlaneLanding,ArrowRight,ArrowLeft,ArrowUpRight,CalendarDays,UsersRound,UserRound,UserRoundPlus,CarFront,TrainFront,RefreshCw,ShieldCheck,CheckCircle2,Clock3,ExternalLink,MapPin,Info,ChevronDown,ChevronRight,Sparkles,Wallet,Copy,Check,SlidersHorizontal,Compass,AlertCircle,LockKeyhole,Navigation,Ticket,Globe2} from 'lucide-react';
-import {DEMO_TRIPS} from '../lib/trips';
+import {DEMO_TRIPS,airportUtc} from '../lib/trips';
 import {makeTimeline} from '../lib/timeline';
 const SHOWCASE=process.env.NEXT_PUBLIC_SHOWCASE_ONLY==='true';
 const MODES=[{id:'solo',label:'Just me',note:'1 adult',adults:1,children:0,icon:UserRound},{id:'couple',label:'Two adults',note:'2 adults',adults:2,children:0,icon:UsersRound},{id:'family',label:'Whole family',note:'2 adults + children',adults:2,children:2,icon:UsersRound},{id:'custom',label:'Other travelers',note:'Customize group',adults:1,children:0,icon:UserRoundPlus}];
@@ -79,7 +79,7 @@ export default function Home(){
  async function loadComparison(adultCount=adults,districtValue=district){
   setBusy(true);setError('');setSelectedTransport('');
   try{const out=selected?.outbound?.departure||departureLocal,back=selected?.inbound?.arrival||arrivalLocal;
-   const useOut=editTimes||manual?departureLocal:out,useBack=editTimes||manual?arrivalLocal:back;
+   const useOut=editTimes||manual||selected?.id==='manual'?airportUtc(departureLocal,airport):out,useBack=editTimes||manual||selected?.id==='manual'?airportUtc(arrivalLocal,airport):back;
    const params=new URLSearchParams({outboundFlight:useOut||'',inboundArrival:useBack||'',airport:airport||'DEN',adults:String(adultCount),district:'in'});
    const response=await fetch('/api/transport?'+params,{cache:'no-store'});if(!response.ok)throw Error('Pricing information is temporarily unavailable');
    setTransport(await response.json());

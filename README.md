@@ -63,4 +63,4 @@ Public demo flights are entirely fictional. Private deploys are protected by Ver
 - In-district Central Park parking default; one seat per child, checked bags, stroller, XL capacity check.
 - Copy includes full schedule; /privacy explains data use and revocation.
 
-Release blockers for unrestricted multi-user production: Google consent-screen publishing/verification has not been inspected; production OAuth round trip needs a user-authorized login; Uber/Lyft provider credentials are absent; live driving/flight-status integrations are absent. Existing Vercel account-level protection is preserved. Do not describe this as fully production-ready until those external requirements pass.
+Release blockers for unrestricted multi-user production: Google consent-screen publishing/verification has not been inspected; production OAuth round trip needs a user-authorized login; Uber/Lyft provider credentials are absent; live driving/flight-status integrations are absent. Production visitors can access the planner and use Google sign-in; preview deployments retain Vercel protection. Do not describe this as fully production-ready until those external requirements pass.
