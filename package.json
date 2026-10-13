@@ -1,11 +1,12 @@
 {
   "name": "personal-travel-agent",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "next": "15.5.12",
@@ -14,9 +15,11 @@
     "googleapis": "^166.0.0",
     "jose": "^6.0.0",
     "next-auth": "^4.24.13",
-    "adm-zip": "^0.5.16"
+    "adm-zip": "^0.5.16",
+    "lucide-react": "^0.468.0"
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "type": "module"
 }
